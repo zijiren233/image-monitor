@@ -30,128 +30,6 @@
             "fieldConfig": {
                 "defaults": {
                     "color": {
-                        "mode": "palette-classic"
-                    },
-                    "custom": {
-                        "hideFrom": {
-                            "legend": false,
-                            "tooltip": false,
-                            "vis": false
-                        }
-                    },
-                    "mappings": [],
-                    "unit": "short"
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 6,
-                "x": 0,
-                "y": 0
-            },
-            "id": 1,
-            "options": {
-                "legend": {
-                    "displayMode": "table",
-                    "placement": "right",
-                    "values": [
-                        "value"
-                    ]
-                },
-                "pieType": "pie",
-                "reduceOptions": {
-                    "calcs": [
-                        "lastNotNull"
-                    ],
-                    "fields": "",
-                    "values": false
-                },
-                "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
-                }
-            },
-            "targets": [
-                {
-                    "expr": "sum by (reason) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
-                    "format": "time_series",
-                    "legendFormat": "{{reason}}",
-                    "refId": "A"
-                }
-            ],
-            "title": "镜像拉取失败原因分布",
-            "type": "piechart"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
-                        "mode": "palette-classic"
-                    },
-                    "custom": {
-                        "hideFrom": {
-                            "legend": false,
-                            "tooltip": false,
-                            "vis": false
-                        }
-                    },
-                    "mappings": [],
-                    "unit": "short"
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 6,
-                "x": 6,
-                "y": 0
-            },
-            "id": 2,
-            "options": {
-                "legend": {
-                    "displayMode": "table",
-                    "placement": "right",
-                    "values": [
-                        "value"
-                    ]
-                },
-                "pieType": "pie",
-                "reduceOptions": {
-                    "calcs": [
-                        "lastNotNull"
-                    ],
-                    "fields": "",
-                    "values": false
-                },
-                "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
-                }
-            },
-            "targets": [
-                {
-                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
-                    "format": "time_series",
-                    "legendFormat": "{{registry}}",
-                    "refId": "A"
-                }
-            ],
-            "title": "镜像仓库失败分布",
-            "type": "piechart"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
                         "mode": "thresholds"
                     },
                     "mappings": [],
@@ -175,7 +53,7 @@
             "gridPos": {
                 "h": 4,
                 "w": 6,
-                "x": 12,
+                "x": 0,
                 "y": 0
             },
             "id": 3,
@@ -240,7 +118,7 @@
             "gridPos": {
                 "h": 4,
                 "w": 6,
-                "x": 18,
+                "x": 6,
                 "y": 0
             },
             "id": 11,
@@ -293,9 +171,131 @@
                 "overrides": []
             },
             "gridPos": {
-                "h": 4,
+                "h": 8,
                 "w": 6,
                 "x": 12,
+                "y": 0
+            },
+            "id": 1,
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "values": [
+                        "value"
+                    ]
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "sum by (reason) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
+                    "format": "time_series",
+                    "legendFormat": "{{reason}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "镜像拉取失败原因分布",
+            "type": "piechart"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "vis": false
+                        }
+                    },
+                    "mappings": [],
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 6,
+                "x": 18,
+                "y": 0
+            },
+            "id": 2,
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "values": [
+                        "value"
+                    ]
+                },
+                "pieType": "pie",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
+                    "format": "time_series",
+                    "legendFormat": "{{registry}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "镜像仓库失败分布",
+            "type": "piechart"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "vis": false
+                        }
+                    },
+                    "mappings": [],
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 0,
                 "y": 4
             },
             "id": 10,
@@ -356,7 +356,7 @@
             "gridPos": {
                 "h": 4,
                 "w": 6,
-                "x": 18,
+                "x": 6,
                 "y": 4
             },
             "id": 12,
@@ -450,93 +450,8 @@
             },
             "gridPos": {
                 "h": 8,
-                "w": 8,
+                "w": 12,
                 "x": 0,
-                "y": 8
-            },
-            "id": 4,
-            "options": {
-                "legend": {
-                    "calcs": [],
-                    "displayMode": "table",
-                    "placement": "right"
-                },
-                "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
-                }
-            },
-            "targets": [
-                {
-                    "expr": "sum by (exported_namespace) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
-                    "format": "time_series",
-                    "legendFormat": "{{exported_namespace}}",
-                    "refId": "A"
-                }
-            ],
-            "title": "各命名空间失败数量",
-            "type": "timeseries"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
-                        "mode": "palette-classic"
-                    },
-                    "custom": {
-                        "axisLabel": "",
-                        "axisPlacement": "auto",
-                        "barAlignment": 0,
-                        "drawStyle": "line",
-                        "fillOpacity": 10,
-                        "gradientMode": "none",
-                        "hideFrom": {
-                            "legend": false,
-                            "tooltip": false,
-                            "vis": false
-                        },
-                        "lineInterpolation": "linear",
-                        "lineWidth": 1,
-                        "pointSize": 5,
-                        "scaleDistribution": {
-                            "type": "linear"
-                        },
-                        "showPoints": "never",
-                        "spanNulls": false,
-                        "stacking": {
-                            "group": "A",
-                            "mode": "none"
-                        },
-                        "thresholdsStyle": {
-                            "mode": "off"
-                        }
-                    },
-                    "mappings": [],
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            {
-                                "color": "green",
-                                "value": null
-                            },
-                            {
-                                "color": "red",
-                                "value": 80
-                            }
-                        ]
-                    },
-                    "unit": "short"
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 8,
-                "x": 8,
                 "y": 8
             },
             "id": 5,
@@ -620,8 +535,8 @@
             },
             "gridPos": {
                 "h": 8,
-                "w": 8,
-                "x": 16,
+                "w": 12,
+                "x": 12,
                 "y": 8
             },
             "id": 6,
@@ -709,97 +624,8 @@
             },
             "gridPos": {
                 "h": 8,
-                "w": 12,
+                "w": 24,
                 "x": 0,
-                "y": 16
-            },
-            "id": 13,
-            "options": {
-                "legend": {
-                    "calcs": [],
-                    "displayMode": "table",
-                    "placement": "right"
-                },
-                "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
-                }
-            },
-            "targets": [
-                {
-                    "expr": "sum by (exported_namespace) (k8s_pod_image_pull_slow_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
-                    "format": "time_series",
-                    "legendFormat": "{{exported_namespace}}",
-                    "refId": "A"
-                }
-            ],
-            "title": "各命名空间慢拉取数量 (>=5分钟)",
-            "type": "timeseries"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
-                        "mode": "palette-classic"
-                    },
-                    "custom": {
-                        "axisLabel": "",
-                        "axisPlacement": "auto",
-                        "barAlignment": 0,
-                        "drawStyle": "line",
-                        "fillOpacity": 10,
-                        "gradientMode": "none",
-                        "hideFrom": {
-                            "legend": false,
-                            "tooltip": false,
-                            "vis": false
-                        },
-                        "lineInterpolation": "linear",
-                        "lineWidth": 1,
-                        "pointSize": 5,
-                        "scaleDistribution": {
-                            "type": "linear"
-                        },
-                        "showPoints": "never",
-                        "spanNulls": false,
-                        "stacking": {
-                            "group": "A",
-                            "mode": "none"
-                        },
-                        "thresholdsStyle": {
-                            "mode": "off"
-                        }
-                    },
-                    "mappings": [],
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            {
-                                "color": "green",
-                                "value": null
-                            },
-                            {
-                                "color": "yellow",
-                                "value": 1
-                            },
-                            {
-                                "color": "orange",
-                                "value": 5
-                            }
-                        ]
-                    },
-                    "unit": "short"
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 12,
-                "x": 12,
                 "y": 16
             },
             "id": 14,
@@ -1045,7 +871,7 @@
                 ]
             },
             "gridPos": {
-                "h": 8,
+                "h": 10,
                 "w": 24,
                 "x": 0,
                 "y": 32
@@ -1160,10 +986,10 @@
                 ]
             },
             "gridPos": {
-                "h": 8,
+                "h": 10,
                 "w": 24,
                 "x": 0,
-                "y": 40
+                "y": 42
             },
             "id": 15,
             "options": {
