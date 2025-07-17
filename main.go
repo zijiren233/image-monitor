@@ -30,23 +30,23 @@ var (
 	imagePullFailureGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "k8s_pod_image_pull_failure_total",
-			Help: "Number of pods with image pull failures categorized by pod, node and reason",
+			Help: "Number of pods with image pull failures categorized by exported_namespace, exported_pod, node and reason",
 		},
-		[]string{"namespace", "pod", "node", "registry", "reason"},
+		[]string{"exported_namespace", "exported_pod", "node", "registry", "reason"},
 	)
 	imagePullFailureAlertCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "k8s_pod_image_pull_failure_alerts_total",
-			Help: "Total number of image pull failure alerts triggered, by pod, node and reason",
+			Help: "Total number of image pull failure alerts triggered, by exported_namespace, exported_pod, node and reason",
 		},
-		[]string{"namespace", "pod", "node", "registry", "reason"},
+		[]string{"exported_namespace", "exported_pod", "node", "registry", "reason"},
 	)
 	imagePullSlowAlertCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "k8s_pod_image_pull_slow_alerts_total",
-			Help: "Total number of image pull slow alerts triggered (>=5m), by pod, node and registry",
+			Help: "Total number of image pull slow alerts triggered (>=5m), by exported_namespace, exported_pod, node and registry",
 		},
-		[]string{"namespace", "pod", "node", "registry", "reason"},
+		[]string{"exported_namespace", "exported_pod", "node", "registry", "reason"},
 	)
 )
 
@@ -72,7 +72,7 @@ var slowPullTimers sync.Map // key:string -> *time.Timer
 
 var (
 	podFailures sync.Map // key namespace/pod -> *podInfo
-	alertCounts sync.Map // key namespace/pod/node/registry/reason -> *alertCount
+	alertCounts sync.Map // key exported_namespace/exported_pod/node/registry/reason -> *alertCount
 	clientset   *kubernetes.Clientset
 )
 
@@ -365,8 +365,16 @@ func updateReasons(pi *podInfo, reasons map[string]failureInfo, pod *corev1.Pod)
 			}
 
 			newCount := ac.count.Add(1)
-			log.Printf("[AlertCounter] #%d %s namespace=%s pod=%s node=%s registry=%s reason=%s",
-				newCount, pod.Name, pi.namespace, pi.podName, pi.nodeName, info.registry, reason)
+			log.Printf(
+				"[AlertCounter] #%d %s exported_namespace=%s exported_pod=%s node=%s registry=%s reason=%s",
+				newCount,
+				pod.Name,
+				pi.namespace,
+				pi.podName,
+				pi.nodeName,
+				info.registry,
+				reason,
+			)
 
 			pi.reasons[reason] = info
 		}

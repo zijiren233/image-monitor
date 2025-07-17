@@ -74,7 +74,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (reason) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (reason) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{reason}}",
                     "refId": "A"
@@ -135,7 +135,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{registry}}",
                     "refId": "A"
@@ -196,7 +196,7 @@
             "pluginVersion": "9.0.0",
             "targets": [
                 {
-                    "expr": "sum(k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum(k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "总失败数",
                     "refId": "A"
@@ -281,9 +281,9 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (namespace) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (exported_namespace) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
-                    "legendFormat": "{{namespace}}",
+                    "legendFormat": "{{exported_namespace}}",
                     "refId": "A"
                 }
             ],
@@ -366,7 +366,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (node) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (node) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{node}}",
                     "refId": "A"
@@ -451,7 +451,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{registry}}",
                     "refId": "A"
@@ -536,9 +536,9 @@
             },
             "targets": [
                 {
-                    "expr": "rate(k8s_pod_image_pull_failure_alerts_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
+                    "expr": "rate(k8s_pod_image_pull_failure_alerts_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
                     "format": "time_series",
-                    "legendFormat": "{{namespace}}-{{node}}-{{registry}}-{{reason}}",
+                    "legendFormat": "{{exported_namespace}}-{{node}}-{{registry}}-{{reason}}",
                     "refId": "A"
                 }
             ],
@@ -621,9 +621,9 @@
             },
             "targets": [
                 {
-                    "expr": "rate(k8s_pod_image_pull_slow_alerts_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
+                    "expr": "rate(k8s_pod_image_pull_slow_alerts_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
                     "format": "time_series",
-                    "legendFormat": "{{namespace}}-{{node}}-{{registry}}",
+                    "legendFormat": "{{exported_namespace}}-{{node}}-{{registry}}",
                     "refId": "A"
                 }
             ],
@@ -694,7 +694,7 @@
             "pluginVersion": "9.0.0",
             "targets": [
                 {
-                    "expr": "k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"} > 0",
+                    "expr": "k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\"} > 0",
                     "format": "table",
                     "instant": true,
                     "refId": "A"
@@ -714,8 +714,8 @@
                         "indexByName": {},
                         "renameByName": {
                             "Value": "失败数量",
-                            "namespace": "命名空间",
-                            "pod": "Pod",
+                            "exported_namespace": "命名空间",
+                            "exported_pod": "Pod",
                             "node": "节点",
                             "registry": "镜像仓库",
                             "reason": "失败原因"
@@ -765,15 +765,15 @@
                     "type": "prometheus",
                     "uid": "${datasource}"
                 },
-                "definition": "label_values(k8s_pod_image_pull_failure_total, namespace)",
+                "definition": "label_values(k8s_pod_image_pull_failure_total, exported_namespace)",
                 "hide": 0,
                 "includeAll": true,
                 "label": "命名空间",
                 "multi": true,
-                "name": "namespace",
+                "name": "exported_namespace",
                 "options": [],
                 "query": {
-                    "query": "label_values(k8s_pod_image_pull_failure_total, namespace)",
+                    "query": "label_values(k8s_pod_image_pull_failure_total, exported_namespace)",
                     "refId": "StandardVariableQuery"
                 },
                 "refresh": 2,
