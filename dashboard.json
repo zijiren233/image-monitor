@@ -139,7 +139,7 @@
             "pluginVersion": "9.0.0",
             "targets": [
                 {
-                    "expr": "sum(k8s_pod_image_pull_slow_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
+                    "expr": "sum(k8s_pod_image_pull_slow_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"}) OR on() vector(0)",
                     "format": "time_series",
                     "legendFormat": "慢拉取总数",
                     "refId": "A"
@@ -383,7 +383,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (registry) (k8s_pod_image_pull_slow_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
+                    "expr": "sum by (registry) (k8s_pod_image_pull_slow_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"}) OR on() vector(0)",
                     "format": "time_series",
                     "legendFormat": "{{registry}}",
                     "refId": "A"
