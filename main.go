@@ -30,31 +30,33 @@ var (
 	imagePullFailureGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "k8s_pod_image_pull_failure_total",
-			Help: "Number of pods with image pull failures categorized by node and reason",
+			Help: "Number of pods with image pull failures categorized by pod, node and reason",
 		},
-		[]string{"node", "registry", "reason"},
+		[]string{"namespace", "pod", "node", "registry", "reason"},
 	)
 	imagePullFailureAlertCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "k8s_pod_image_pull_failure_alerts_total",
-			Help: "Total number of image pull failure alerts triggered, by node and reason",
+			Help: "Total number of image pull failure alerts triggered, by pod, node and reason",
 		},
-		[]string{"node", "registry", "reason"},
+		[]string{"namespace", "pod", "node", "registry", "reason"},
 	)
 	imagePullSlowAlertCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "k8s_pod_image_pull_slow_alerts_total",
-			Help: "Total number of image pull slow alerts triggered (>=5m), by node and registry",
+			Help: "Total number of image pull slow alerts triggered (>=5m), by pod, node and registry",
 		},
-		[]string{"node", "registry", "reason"},
+		[]string{"namespace", "pod", "node", "registry", "reason"},
 	)
 )
 
 // podInfo 包含失败原因、节点信息及锁
 type podInfo struct {
-	mu       sync.Mutex
-	reasons  map[string]failureInfo // key: reason, value: failureInfo
-	nodeName string
+	mu        sync.Mutex
+	reasons   map[string]failureInfo // key: reason, value: failureInfo
+	nodeName  string
+	namespace string
+	podName   string
 }
 
 type failureInfo struct {
@@ -70,7 +72,7 @@ var slowPullTimers sync.Map // key:string -> *time.Timer
 
 var (
 	podFailures sync.Map // key namespace/pod -> *podInfo
-	alertCounts sync.Map // key node/registry/reason -> *alertCount
+	alertCounts sync.Map // key namespace/pod/node/registry/reason -> *alertCount
 	clientset   *kubernetes.Clientset
 )
 
@@ -117,7 +119,7 @@ func onPodAddOrUpdate(obj any) {
 					if newCs.Name == cs.Name && newCs.ContainerID == "" {
 						registry := parseRegistry(image)
 						nodeName := getNodeName(p2)
-						imagePullSlowAlertCounter.WithLabelValues(nodeName, registry, "slow_pull").
+						imagePullSlowAlertCounter.WithLabelValues(ns, podName, nodeName, registry, "slow_pull").
 							Inc()
 						log.Printf("[SlowPullAlert] %s/%s container=%s node=%s registry=%s",
 							ns, podName, cs.Name, nodeName, registry)
@@ -160,8 +162,10 @@ func onPodAddOrUpdate(obj any) {
 	}
 
 	piVal, _ := podFailures.LoadOrStore(podKey, &podInfo{
-		reasons:  make(map[string]failureInfo),
-		nodeName: getNodeName(pod),
+		reasons:   make(map[string]failureInfo),
+		nodeName:  getNodeName(pod),
+		podName:   pod.Name,
+		namespace: pod.Namespace,
 	})
 
 	pi, ok := piVal.(*podInfo)
@@ -173,8 +177,10 @@ func onPodAddOrUpdate(obj any) {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 
-	// 更新节点信息
+	// 更新节点信息和Pod名称
 	pi.nodeName = getNodeName(pod)
+	pi.namespace = pod.Namespace
+	pi.podName = pod.Name
 
 	updateReasons(pi, reasons, pod)
 }
@@ -199,19 +205,29 @@ func onPodDelete(obj any) {
 
 	reasonsVal, loaded := podFailures.LoadAndDelete(key)
 	if loaded {
-		pi := reasonsVal.(*podInfo)
+		pi, ok := reasonsVal.(*podInfo)
+		if !ok {
+			log.Printf("[onPodDelete] 无法解析已删除对象类型: %T", reasonsVal)
+			return
+		}
 
 		pi.mu.Lock()
 		defer pi.mu.Unlock()
 
 		for reason, info := range pi.reasons {
-			imagePullFailureGauge.WithLabelValues(pi.nodeName, info.registry, reason).Dec()
+			imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, pi.nodeName, info.registry, reason).
+				Dec()
 		}
 	}
 
 	prefix := key + "/"
 	slowPullTimers.Range(func(k, v any) bool {
-		sk := k.(string)
+		sk, ok := k.(string)
+		if !ok {
+			log.Printf("[onPodDelete] 无法解析已删除对象类型: %T", k)
+			return true
+		}
+
 		if strings.HasPrefix(sk, prefix) {
 			if t, ok := v.(*time.Timer); ok {
 				t.Stop()
@@ -318,7 +334,8 @@ func updateReasons(pi *podInfo, reasons map[string]failureInfo, pod *corev1.Pod)
 	// 删除旧的原因
 	for reason, oldInfo := range pi.reasons {
 		if _, found := reasons[reason]; !found {
-			imagePullFailureGauge.WithLabelValues(pi.nodeName, oldInfo.registry, reason).Dec()
+			imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, pi.nodeName, oldInfo.registry, reason).
+				Dec()
 			delete(pi.reasons, reason)
 		}
 	}
@@ -326,15 +343,30 @@ func updateReasons(pi *podInfo, reasons map[string]failureInfo, pod *corev1.Pod)
 	// 添加新的原因
 	for reason, info := range reasons {
 		if _, found := pi.reasons[reason]; !found {
-			imagePullFailureGauge.WithLabelValues(pi.nodeName, info.registry, reason).Inc()
-			imagePullFailureAlertCounter.WithLabelValues(pi.nodeName, info.registry, reason).Inc()
+			imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, pi.nodeName, info.registry, reason).
+				Inc()
+			imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, pi.nodeName, info.registry, reason).
+				Inc()
 
-			countKey := fmt.Sprintf("%s/%s/%s", pi.nodeName, info.registry, reason)
+			countKey := fmt.Sprintf(
+				"%s/%s/%s/%s/%s",
+				pi.namespace,
+				pi.podName,
+				pi.nodeName,
+				info.registry,
+				reason,
+			)
 			acVal, _ := alertCounts.LoadOrStore(countKey, &alertCount{})
-			ac := acVal.(*alertCount)
+
+			ac, ok := acVal.(*alertCount)
+			if !ok {
+				log.Printf("[updateReasons] 无法解析 alertCount 类型: %T", acVal)
+				continue
+			}
+
 			newCount := ac.count.Add(1)
-			log.Printf("[AlertCounter] #%d %s node=%s registry=%s reason=%s",
-				newCount, pod.Name, pi.nodeName, info.registry, reason)
+			log.Printf("[AlertCounter] #%d %s namespace=%s pod=%s node=%s registry=%s reason=%s",
+				newCount, pod.Name, pi.namespace, pi.podName, pi.nodeName, info.registry, reason)
 
 			pi.reasons[reason] = info
 		}

@@ -74,7 +74,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (reason) (k8s_pod_image_pull_failure_total{node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (reason) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{reason}}",
                     "refId": "A"
@@ -135,7 +135,7 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{registry}}",
                     "refId": "A"
@@ -196,7 +196,7 @@
             "pluginVersion": "9.0.0",
             "targets": [
                 {
-                    "expr": "sum(k8s_pod_image_pull_failure_total{node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum(k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "总失败数",
                     "refId": "A"
@@ -263,7 +263,7 @@
             },
             "gridPos": {
                 "h": 8,
-                "w": 12,
+                "w": 8,
                 "x": 0,
                 "y": 8
             },
@@ -281,13 +281,13 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (node) (k8s_pod_image_pull_failure_total{node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (namespace) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
-                    "legendFormat": "{{node}}",
+                    "legendFormat": "{{namespace}}",
                     "refId": "A"
                 }
             ],
-            "title": "各节点镜像拉取失败数量",
+            "title": "各命名空间失败数量",
             "type": "timeseries"
         },
         {
@@ -348,8 +348,8 @@
             },
             "gridPos": {
                 "h": 8,
-                "w": 12,
-                "x": 12,
+                "w": 8,
+                "x": 8,
                 "y": 8
             },
             "id": 5,
@@ -366,7 +366,92 @@
             },
             "targets": [
                 {
-                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{node=~\"$node\",registry=~\"$registry\"})",
+                    "expr": "sum by (node) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
+                    "format": "time_series",
+                    "legendFormat": "{{node}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "各节点失败数量",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "vis": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 1,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "never",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 8
+            },
+            "id": 6,
+            "options": {
+                "legend": {
+                    "calcs": [],
+                    "displayMode": "table",
+                    "placement": "right"
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "sum by (registry) (k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"})",
                     "format": "time_series",
                     "legendFormat": "{{registry}}",
                     "refId": "A"
@@ -437,7 +522,7 @@
                 "x": 0,
                 "y": 16
             },
-            "id": 6,
+            "id": 7,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -451,9 +536,9 @@
             },
             "targets": [
                 {
-                    "expr": "rate(k8s_pod_image_pull_failure_alerts_total{node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
+                    "expr": "rate(k8s_pod_image_pull_failure_alerts_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
                     "format": "time_series",
-                    "legendFormat": "{{node}}-{{registry}}-{{reason}}",
+                    "legendFormat": "{{namespace}}-{{node}}-{{registry}}-{{reason}}",
                     "refId": "A"
                 }
             ],
@@ -522,7 +607,7 @@
                 "x": 12,
                 "y": 16
             },
-            "id": 7,
+            "id": 8,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -536,9 +621,9 @@
             },
             "targets": [
                 {
-                    "expr": "rate(k8s_pod_image_pull_slow_alerts_total{node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
+                    "expr": "rate(k8s_pod_image_pull_slow_alerts_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"}[5m]) * 60",
                     "format": "time_series",
-                    "legendFormat": "{{node}}-{{registry}}",
+                    "legendFormat": "{{namespace}}-{{node}}-{{registry}}",
                     "refId": "A"
                 }
             ],
@@ -596,7 +681,7 @@
                 "x": 0,
                 "y": 24
             },
-            "id": 8,
+            "id": 9,
             "options": {
                 "showHeader": true,
                 "sortBy": [
@@ -609,7 +694,7 @@
             "pluginVersion": "9.0.0",
             "targets": [
                 {
-                    "expr": "k8s_pod_image_pull_failure_total{node=~\"$node\",registry=~\"$registry\"} > 0",
+                    "expr": "k8s_pod_image_pull_failure_total{namespace=~\"$namespace\",node=~\"$node\",registry=~\"$registry\"} > 0",
                     "format": "table",
                     "instant": true,
                     "refId": "A"
@@ -629,6 +714,8 @@
                         "indexByName": {},
                         "renameByName": {
                             "Value": "失败数量",
+                            "namespace": "命名空间",
+                            "pod": "Pod",
                             "node": "节点",
                             "registry": "镜像仓库",
                             "reason": "失败原因"
@@ -667,6 +754,33 @@
                 "regex": "",
                 "skipUrlSync": false,
                 "type": "datasource"
+            },
+            {
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "${datasource}"
+                },
+                "definition": "label_values(k8s_pod_image_pull_failure_total, namespace)",
+                "hide": 0,
+                "includeAll": true,
+                "label": "命名空间",
+                "multi": true,
+                "name": "namespace",
+                "options": [],
+                "query": {
+                    "query": "label_values(k8s_pod_image_pull_failure_total, namespace)",
+                    "refId": "StandardVariableQuery"
+                },
+                "refresh": 2,
+                "regex": "",
+                "skipUrlSync": false,
+                "sort": 1,
+                "type": "query"
             },
             {
                 "current": {
