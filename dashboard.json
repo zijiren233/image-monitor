@@ -709,7 +709,14 @@
                             "Time": true,
                             "__name__": true,
                             "instance": true,
-                            "job": true
+                            "job": true,
+                            "cluster": true,
+                            "container": true,
+                            "endpoint": true,
+                            "namespace": true,
+                            "pod": true,
+                            "prometheus": true,
+                            "service": true
                         },
                         "indexByName": {},
                         "renameByName": {
