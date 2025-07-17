@@ -247,6 +247,10 @@ func analyzePodImagePullErrors(pod *corev1.Pod, nodeName string) map[string]fail
 					cs.State.Waiting.Reason,
 					cs.State.Waiting.Message,
 				)
+				if classified == "" {
+					continue
+				}
+
 				registry := parseRegistry(cs.Image)
 				reasons[classified] = failureInfo{
 					registry: registry,
@@ -324,7 +328,7 @@ func classifyFailureReason(reason, message string) string {
 
 		log.Printf("[Classify] 未知错误分类 reason=%s message=%s", reason, message)
 
-		return "unknown_error"
+		return ""
 	default:
 		return strings.ToLower(reason)
 	}
