@@ -41,12 +41,21 @@ var (
 		},
 		[]string{"exported_namespace", "exported_pod", "node", "registry", "image", "reason"},
 	)
+	// 改为 Gauge 类型，可以进行 Inc 和 Dec 操作
+	imagePullSlowAlertGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "k8s_pod_image_pull_slow_total",
+			Help: "Number of pods with slow image pull (>=5m), by exported_namespace, exported_pod, node, registry and image",
+		},
+		[]string{"exported_namespace", "exported_pod", "node", "registry", "image"},
+	)
+	// 保留 Counter 用于记录慢拉取告警的累计次数
 	imagePullSlowAlertCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "k8s_pod_image_pull_slow_alerts_total",
 			Help: "Total number of image pull slow alerts triggered (>=5m), by exported_namespace, exported_pod, node, registry and image",
 		},
-		[]string{"exported_namespace", "exported_pod", "node", "registry", "image", "reason"},
+		[]string{"exported_namespace", "exported_pod", "node", "registry", "image"},
 	)
 )
 
@@ -66,12 +75,24 @@ type failureInfo struct {
 	reason   string // 失败原因
 }
 
+// slowPullInfo 记录慢拉取的信息
+type slowPullInfo struct {
+	namespace string
+	podName   string
+	nodeName  string
+	registry  string
+	image     string
+}
+
 type alertCount struct {
 	count atomic.Int64
 }
 
 // slowPullTimers 存储 image pull 定时器
 var slowPullTimers sync.Map // key:string -> *time.Timer
+
+// slowPullTracking 跟踪当前的慢拉取状态
+var slowPullTracking sync.Map // key: namespace/pod/container -> slowPullInfo
 
 var (
 	podFailures sync.Map // key namespace/pod -> *podInfo
@@ -88,6 +109,67 @@ var (
 	reUnauthorized = regexp.MustCompile(`(?i)unauthorized|authentication required`)
 	reTLS          = regexp.MustCompile(`(?i)tls handshake`)
 )
+
+func checkSlowPull(ns, podName string, cs corev1.ContainerStatus, image string) {
+	key := fmt.Sprintf("%s/%s/%s", ns, podName, cs.Name)
+
+	if cs.ContainerID == "" && cs.State.Waiting != nil && isPublicRegistry(image) {
+		timer := time.AfterFunc(5*time.Minute, func() {
+			p2, err := clientset.CoreV1().
+				Pods(ns).
+				Get(context.Background(), podName, metav1.GetOptions{})
+			if err != nil {
+				log.Printf("[SlowPull] 获取 Pod %s/%s 失败: %v", ns, podName, err)
+				return
+			}
+
+			for _, newCs := range p2.Status.ContainerStatuses {
+				if newCs.Name == cs.Name && newCs.ContainerID == "" {
+					registry := parseRegistry(image)
+					nodeName := getNodeName(p2)
+
+					// 记录慢拉取状态
+					slowPullInfo := slowPullInfo{
+						namespace: ns,
+						podName:   podName,
+						nodeName:  nodeName,
+						registry:  registry,
+						image:     image,
+					}
+					slowPullTracking.Store(key, slowPullInfo)
+
+					// 增加慢拉取指标
+					imagePullSlowAlertGauge.WithLabelValues(ns, podName, nodeName, registry, image).
+						Inc()
+					imagePullSlowAlertCounter.WithLabelValues(ns, podName, nodeName, registry, image).
+						Inc()
+
+					log.Printf(
+						"[SlowPullAlert] %s/%s container=%s node=%s registry=%s image=%s",
+						ns,
+						podName,
+						cs.Name,
+						nodeName,
+						registry,
+						image,
+					)
+				}
+			}
+
+			slowPullTimers.Delete(key)
+		})
+
+		actual, loaded := slowPullTimers.LoadOrStore(key, timer)
+		if loaded {
+			timer.Stop()
+
+			_ = actual
+		}
+	} else {
+		// 容器拉取成功或状态变化，清理慢拉取状态
+		cleanupSlowPull(key)
+	}
+}
 
 func onPodAddOrUpdate(obj any) {
 	pod, ok := obj.(*corev1.Pod)
@@ -106,55 +188,6 @@ func onPodAddOrUpdate(obj any) {
 		currentNodeName,
 		len(pod.Status.ContainerStatuses),
 	)
-
-	checkSlowPull := func(ns, podName string, cs corev1.ContainerStatus, image string) {
-		key := fmt.Sprintf("%s/%s/%s", ns, podName, cs.Name)
-
-		if cs.ContainerID == "" && cs.State.Waiting != nil && isPublicRegistry(image) {
-			timer := time.AfterFunc(5*time.Minute, func() {
-				p2, err := clientset.CoreV1().
-					Pods(ns).
-					Get(context.Background(), podName, metav1.GetOptions{})
-				if err != nil {
-					log.Printf("[SlowPull] 获取 Pod %s/%s 失败: %v", ns, podName, err)
-					return
-				}
-
-				for _, newCs := range p2.Status.ContainerStatuses {
-					if newCs.Name == cs.Name && newCs.ContainerID == "" {
-						registry := parseRegistry(image)
-						nodeName := getNodeName(p2)
-						imagePullSlowAlertCounter.WithLabelValues(ns, podName, nodeName, registry, image, "slow_pull").
-							Inc()
-						log.Printf(
-							"[SlowPullAlert] %s/%s container=%s node=%s registry=%s image=%s",
-							ns,
-							podName,
-							cs.Name,
-							nodeName,
-							registry,
-							image,
-						)
-					}
-				}
-
-				slowPullTimers.Delete(key)
-			})
-
-			actual, loaded := slowPullTimers.LoadOrStore(key, timer)
-			if loaded {
-				timer.Stop()
-
-				_ = actual
-			}
-		} else {
-			if val, exists := slowPullTimers.LoadAndDelete(key); exists {
-				if t, ok := val.(*time.Timer); ok {
-					t.Stop()
-				}
-			}
-		}
-	}
 
 	// 遍历 InitContainerStatuses + ContainerStatuses
 	for _, cs := range pod.Status.InitContainerStatuses {
@@ -234,6 +267,7 @@ func onPodDelete(obj any) {
 		}
 	}
 
+	// 清理慢拉取相关的状态
 	prefix := key + "/"
 	slowPullTimers.Range(func(k, v any) bool {
 		sk, ok := k.(string)
@@ -248,10 +282,38 @@ func onPodDelete(obj any) {
 			}
 
 			slowPullTimers.Delete(sk)
+
+			// 清理慢拉取状态
+			cleanupSlowPull(sk)
 		}
 
 		return true
 	})
+}
+
+// cleanupSlowPull 清理慢拉取状态
+func cleanupSlowPull(key string) {
+	if val, exists := slowPullTracking.LoadAndDelete(key); exists {
+		if info, ok := val.(slowPullInfo); ok {
+			imagePullSlowAlertGauge.WithLabelValues(info.namespace, info.podName, info.nodeName, info.registry, info.image).
+				Dec()
+			log.Printf(
+				"[SlowPullCleanup] Dec slow pull gauge: namespace=%s pod=%s node=%s registry=%s image=%s",
+				info.namespace,
+				info.podName,
+				info.nodeName,
+				info.registry,
+				info.image,
+			)
+		}
+	}
+
+	// 同时清理定时器
+	if val, exists := slowPullTimers.LoadAndDelete(key); exists {
+		if t, ok := val.(*time.Timer); ok {
+			t.Stop()
+		}
+	}
 }
 
 func analyzePodImagePullErrors(pod *corev1.Pod, nodeName string) map[string]failureInfo {
@@ -434,7 +496,7 @@ func updateReasons(
 				info.reason = finalReason
 				pi.reasons[containerName] = info
 			} else if oldInfo.reason != finalReason {
-				// 只有原因发生变化的情况（理论上这种情况在上面的逻辑中已经处理了，这里是保险）
+				// 只有原因发生变化的情况
 				log.Printf(
 					"[UpdateReasons] Only reason changed for %s/%s container=%s: %s->%s",
 					pi.namespace,
@@ -483,6 +545,7 @@ func main() {
 	// 注册 Prometheus 指标
 	prometheus.MustRegister(imagePullFailureGauge)
 	prometheus.MustRegister(imagePullFailureAlertCounter)
+	prometheus.MustRegister(imagePullSlowAlertGauge)
 	prometheus.MustRegister(imagePullSlowAlertCounter)
 
 	// 创建 in-cluster 配置
