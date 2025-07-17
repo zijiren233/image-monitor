@@ -106,8 +106,10 @@ var (
 		`(?i)not found|NotFound|manifest unknown|repository does not exist`,
 	)
 	reProxyError   = regexp.MustCompile(`(?i)proxyconnect|proxy error`)
-	reUnauthorized = regexp.MustCompile(`(?i)unauthorized|authentication required`)
-	reTLS          = regexp.MustCompile(`(?i)tls handshake`)
+	reUnauthorized = regexp.MustCompile(
+		`(?i)unauthorized|authentication require|failed to authorize`,
+	)
+	reTLS = regexp.MustCompile(`(?i)tls handshake`)
 )
 
 func checkSlowPull(ns, podName string, cs corev1.ContainerStatus, image string) {
