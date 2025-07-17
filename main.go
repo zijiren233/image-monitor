@@ -354,6 +354,11 @@ func classifyFailureReason(reason, message string) string {
 	}
 }
 
+// isSpecificReason 判断是否为具体的失败原因（非 back_off_pulling_image）
+func isSpecificReason(reason string) bool {
+	return reason != "back_off_pulling_image" && reason != "unknown_error"
+}
+
 func updateReasons(
 	pi *podInfo,
 	reasons map[string]failureInfo,
@@ -381,8 +386,27 @@ func updateReasons(
 	// 添加新的原因
 	for containerName, info := range reasons {
 		if oldInfo, found := pi.reasons[containerName]; found {
+			// 检查是否需要保留原有的具体原因
+			finalReason := info.reason
+
+			// 如果新的原因是 back_off_pulling_image，且其他信息没变，且之前有具体原因，则保留具体原因
+			if info.reason == "back_off_pulling_image" &&
+				oldInfo.nodeName == info.nodeName &&
+				oldInfo.image == info.image &&
+				oldInfo.registry == info.registry &&
+				isSpecificReason(oldInfo.reason) {
+				finalReason = oldInfo.reason
+				log.Printf(
+					"[UpdateReasons] Preserving specific reason for %s/%s container=%s: keeping '%s' instead of 'back_off_pulling_image'",
+					pi.namespace,
+					pi.podName,
+					containerName,
+					oldInfo.reason,
+				)
+			}
+
 			// 检查是否有变化（节点、失败原因、镜像等）
-			if oldInfo.nodeName != info.nodeName || oldInfo.reason != info.reason ||
+			if oldInfo.nodeName != info.nodeName || oldInfo.reason != finalReason ||
 				oldInfo.image != info.image {
 				log.Printf(
 					"[UpdateReasons] Info changed for %s/%s container=%s: node=%s->%s, reason=%s->%s, image=%s->%s",
@@ -392,7 +416,7 @@ func updateReasons(
 					oldInfo.nodeName,
 					info.nodeName,
 					oldInfo.reason,
-					info.reason,
+					finalReason,
 					oldInfo.image,
 					info.image,
 				)
@@ -401,11 +425,33 @@ func updateReasons(
 				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, oldInfo.nodeName, oldInfo.registry, oldInfo.image, oldInfo.reason).
 					Dec()
 				// 在新信息上 Inc
-				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
+				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
 					Inc()
-				imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
+				imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
 					Inc()
 
+				// 更新存储的信息，使用最终确定的原因
+				info.reason = finalReason
+				pi.reasons[containerName] = info
+			} else if oldInfo.reason != finalReason {
+				// 只有原因发生变化的情况（理论上这种情况在上面的逻辑中已经处理了，这里是保险）
+				log.Printf(
+					"[UpdateReasons] Only reason changed for %s/%s container=%s: %s->%s",
+					pi.namespace,
+					pi.podName,
+					containerName,
+					oldInfo.reason,
+					finalReason,
+				)
+
+				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, oldInfo.nodeName, oldInfo.registry, oldInfo.image, oldInfo.reason).
+					Dec()
+				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
+					Inc()
+				imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
+					Inc()
+
+				info.reason = finalReason
 				pi.reasons[containerName] = info
 			}
 		} else {
