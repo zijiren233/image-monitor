@@ -17,10 +17,10 @@ on:
       - "**/*.yaml"
 
 env:
-  DOCKERHUB_REPO: ${{ secrets.DOCKERHUB_REPO != '' && secrets.DOCKERHUB_REPO || secrets.DOCKERHUB_USERNAME != '' && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'MonitoringAlarm') || '' }}
+  DOCKERHUB_REPO: ${{ secrets.DOCKERHUB_REPO != '' && secrets.DOCKERHUB_REPO || secrets.DOCKERHUB_USERNAME != '' && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'image-monitor') || '' }}
   GHCR_REPO: ghcr.io/${{ github.repository }}
   ALIYUN_REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
-  ALIYUN_REPO: ${{ secrets.ALIYUN_REPO != '' && secrets.ALIYUN_REPO || secrets.ALIYUN_USERNAME != '' && format('{0}/{1}/{2}', secrets.ALIYUN_REGISTRY, secrets.ALIYUN_USERNAME, 'MonitoringAlarm') || '' }}
+  ALIYUN_REPO: ${{ secrets.ALIYUN_REPO != '' && secrets.ALIYUN_REPO || secrets.ALIYUN_USERNAME != '' && format('{0}/{1}/{2}', secrets.ALIYUN_REGISTRY, secrets.ALIYUN_USERNAME, 'image-monitor') || '' }}
 
 jobs:
   build-docker-images:
