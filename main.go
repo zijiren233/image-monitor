@@ -452,6 +452,10 @@ func getNodeName(pod *corev1.Pod) string {
 }
 
 func isPublicRegistry(image string) bool {
+	if !strings.Contains(image, "/") {
+		return true
+	}
+
 	return strings.HasPrefix(image, "docker.io/") ||
 		strings.HasPrefix(image, "gcr.io/") ||
 		strings.HasPrefix(image, "ghcr.io/") ||
