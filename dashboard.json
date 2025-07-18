@@ -74,7 +74,7 @@
             "pluginVersion": "9.0.0",
             "targets": [
                 {
-                    "expr": "sum(k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"})",
+                    "expr": "sum(k8s_pod_image_pull_failure_total{exported_namespace=~\"$exported_namespace\",node=~\"$node\",registry=~\"$registry\",image=~\"$image\"}) OR on() vector(0)",
                     "format": "time_series",
                     "legendFormat": "失败总数",
                     "refId": "A"
