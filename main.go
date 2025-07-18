@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -98,10 +97,6 @@ type slowPullInfo struct {
 	image     string
 }
 
-type alertCount struct {
-	count atomic.Int64
-}
-
 // slowPullTimers 存储 image pull 定时器
 var slowPullTimers sync.Map // key:string -> *time.Timer
 
@@ -110,7 +105,6 @@ var slowPullTracking sync.Map // key: namespace/pod/container -> slowPullInfo
 
 var (
 	podFailures sync.Map // key namespace/pod -> *podInfo
-	alertCounts sync.Map // key exported_namespace/exported_pod/node/registry/image/reason -> *alertCount
 	clientset   *kubernetes.Clientset
 )
 
@@ -148,12 +142,19 @@ func newCheckSlowPullHandler(
 	image string,
 ) func() {
 	return func() {
+		slowPullTimers.Delete(slowPullTimerKey)
+
 		p2, err := clientset.CoreV1().
 			Pods(ns).
 			Get(context.Background(), podName, metav1.GetOptions{})
 		if err != nil {
 			log.Printf("[SlowPull] 获取 Pod %s/%s 失败: %v", ns, podName, err)
-			slowPullTimers.Delete(slowPullTimerKey)
+			return
+		}
+
+		nodeName := getNodeName(p2)
+		if nodeName == "" {
+			log.Printf("[SlowPull] 获取 Pod %s/%s 的节点名失败", ns, podName)
 			return
 		}
 
@@ -163,85 +164,59 @@ func newCheckSlowPullHandler(
 			}
 
 			// 检查容器是否仍在等待且不是失败状态
-			if newCs.ContainerID == "" &&
-				newCs.State.Waiting != nil &&
-				!isImagePullFailureReason(newCs.State.Waiting.Reason) &&
-				!isBackOffPullingImage(
+			if newCs.ContainerID != "" ||
+				newCs.State.Waiting == nil ||
+				!isImagePullSlowReason(newCs.State.Waiting.Reason) ||
+				isBackOffPullingImage(
 					newCs.State.Waiting.Reason,
 					newCs.State.Waiting.Message,
 				) {
-				registry := parseRegistry(image)
-				nodeName := getNodeName(p2)
-
-				// 记录慢拉取状态
-				slowPullInfo := slowPullInfo{
-					namespace: ns,
-					podName:   podName,
-					nodeName:  nodeName,
-					registry:  registry,
-					image:     image,
-				}
-				slowPullTracking.Store(slowPullTimerKey, slowPullInfo)
-
-				// 增加慢拉取指标
-				imagePullSlowAlertGauge.WithLabelValues(ns, podName, nodeName, registry, image).
-					Inc()
-				imagePullSlowAlertCounter.WithLabelValues(ns, podName, nodeName, registry, image).
-					Inc()
-
-				log.Printf(
-					"[SlowPullAlert] %s/%s container=%s node=%s registry=%s image=%s",
-					ns,
-					podName,
-					cs.Name,
-					nodeName,
-					registry,
-					image,
-				)
+				break
 			}
+
+			registry := parseRegistry(image)
+
+			// 记录慢拉取状态
+			slowPullInfo := slowPullInfo{
+				namespace: ns,
+				podName:   podName,
+				nodeName:  nodeName,
+				registry:  registry,
+				image:     image,
+			}
+			slowPullTracking.Store(slowPullTimerKey, slowPullInfo)
+
+			// 增加慢拉取指标
+			imagePullSlowAlertGauge.WithLabelValues(ns, podName, nodeName, registry, image).
+				Inc()
+			imagePullSlowAlertCounter.WithLabelValues(ns, podName, nodeName, registry, image).
+				Inc()
+
+			log.Printf(
+				"[SlowPullAlert] %s/%s container=%s node=%s registry=%s image=%s",
+				ns,
+				podName,
+				cs.Name,
+				nodeName,
+				registry,
+				image,
+			)
 
 			break
 		}
-
-		slowPullTimers.Delete(slowPullTimerKey)
 	}
 }
 
 func checkSlowPull(ns, podName string, cs corev1.ContainerStatus, image string) {
 	slowPullTimerKey := fmt.Sprintf("%s/%s/%s", ns, podName, cs.Name)
 
-	// 检查是否为 back-off pulling image 状态
-	if cs.State.Waiting != nil &&
+	// 检查是否为 image pull slow 状态
+	if cs.ContainerID != "" ||
+		cs.State.Waiting == nil ||
+		!isImagePullSlowReason(cs.State.Waiting.Reason) ||
 		isBackOffPullingImage(cs.State.Waiting.Reason, cs.State.Waiting.Message) {
-		log.Printf(
-			"[SlowPull] Detected back-off pulling image for %s/%s container=%s, cleaning up slow pull tracking",
-			ns,
-			podName,
-			cs.Name,
-		)
 		cleanupSlowPull(slowPullTimerKey)
 
-		return
-	}
-
-	// 检查容器是否已经启动成功
-	if cs.ContainerID != "" {
-		log.Printf(
-			"[SlowPull] Container %s/%s container=%s started successfully, cleaning up slow pull tracking",
-			ns,
-			podName,
-			cs.Name,
-		)
-		cleanupSlowPull(slowPullTimerKey)
-
-		return
-	}
-
-	// 容器不在等待状态或者是失败状态，清理慢拉取状态
-	if cs.State.Waiting == nil ||
-		!isImagePullFailureReason(cs.State.Waiting.Reason) ||
-		!isPublicRegistry(image) {
-		cleanupSlowPull(slowPullTimerKey)
 		return
 	}
 
@@ -274,15 +249,18 @@ func onPodAddOrUpdate(obj any) {
 		return
 	}
 
-	podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	currentNodeName := getNodeName(pod)
+	if currentNodeName == "" {
+		log.Printf("[PodEvent] 获取 Pod %s/%s 的节点名失败", pod.Namespace, pod.Name)
+		return
+	}
 
 	log.Printf(
-		"[PodEvent] %s phase=%s uid=%s node=%s containers=%d",
-		podKey,
+		"[PodEvent] phase=%s uid=%s node=%s pod=%s containers=%d",
 		pod.Status.Phase,
 		string(pod.UID),
 		currentNodeName,
+		pod.Name,
 		len(pod.Status.ContainerStatuses),
 	)
 
@@ -295,7 +273,9 @@ func onPodAddOrUpdate(obj any) {
 		checkSlowPull(pod.Namespace, pod.Name, cs, cs.Image)
 	}
 
-	reasons := analyzePodImagePullErrors(pod, currentNodeName)
+	reasons := analyzePodImagePullErrors(currentNodeName, pod)
+
+	podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
 	piVal, _ := podFailures.LoadOrStore(podKey, &podInfo{
 		reasons:   make(map[string]failureInfo),
@@ -315,7 +295,7 @@ func onPodAddOrUpdate(obj any) {
 	pi.namespace = pod.Namespace
 	pi.podName = pod.Name
 
-	updateReasons(pi, reasons, pod)
+	updateReasons(pi, reasons)
 }
 
 func onPodDelete(obj any) {
@@ -366,26 +346,18 @@ func onPodDelete(obj any) {
 
 	// 清理慢拉取相关的状态
 	prefix := key + "/"
-	slowPullTimers.Range(func(k, v any) bool {
-		sk, ok := k.(string)
-		if !ok {
-			log.Printf("[onPodDelete] 无法解析已删除对象类型: %T", k)
-			return true
-		}
+	slowPullTimers.Range(newCleanupSlowPullWithPrefixFunc(prefix))
+	slowPullTracking.Range(newCleanupSlowPullWithPrefixFunc(prefix))
+}
 
-		if strings.HasPrefix(sk, prefix) {
-			if t, ok := v.(*time.Timer); ok {
-				t.Stop()
-			}
-
-			slowPullTimers.Delete(sk)
-
-			// 清理慢拉取状态
+func newCleanupSlowPullWithPrefixFunc(prefix string) func(k, v any) bool {
+	return func(k, v any) bool {
+		if sk, ok := k.(string); ok && strings.HasPrefix(sk, prefix) {
 			cleanupSlowPull(sk)
 		}
 
 		return true
-	})
+	}
 }
 
 // cleanupSlowPull 清理慢拉取状态
@@ -414,38 +386,43 @@ func cleanupSlowPull(slowPullTimerKey string) {
 	}
 }
 
-func analyzePodImagePullErrors(pod *corev1.Pod, nodeName string) map[string]failureInfo {
+func checkImagePullSlow(
+	statuses []corev1.ContainerStatus,
+	nodeName string,
+	pod *corev1.Pod,
+	reasons map[string]failureInfo,
+) {
+	for _, cs := range statuses {
+		if cs.State.Waiting == nil ||
+			!isImagePullFailureReason(cs.State.Waiting.Reason) ||
+			!isPublicRegistry(cs.Image) {
+			continue
+		}
+
+		classified := classifyFailureReason(
+			cs.State.Waiting.Reason,
+			cs.State.Waiting.Message,
+		)
+		registry := parseRegistry(cs.Image)
+		// 使用容器名作为 key
+		reasons[cs.Name] = failureInfo{
+			registry: registry,
+			nodeName: nodeName,   // 记录当前节点
+			image:    cs.Image,   // 记录镜像信息
+			reason:   classified, // 记录失败原因
+		}
+
+		// 如果是失败状态，清理对应的慢拉取状态
+		key := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, cs.Name)
+		cleanupSlowPull(key)
+	}
+}
+
+func analyzePodImagePullErrors(nodeName string, pod *corev1.Pod) map[string]failureInfo {
 	reasons := make(map[string]failureInfo)
 
-	checkContainerStatuses := func(statuses []corev1.ContainerStatus) {
-		for _, cs := range statuses {
-			if cs.State.Waiting == nil ||
-				!isImagePullFailureReason(cs.State.Waiting.Reason) ||
-				!isPublicRegistry(cs.Image) {
-				continue
-			}
-
-			classified := classifyFailureReason(
-				cs.State.Waiting.Reason,
-				cs.State.Waiting.Message,
-			)
-			registry := parseRegistry(cs.Image)
-			// 使用容器名作为 key
-			reasons[cs.Name] = failureInfo{
-				registry: registry,
-				nodeName: nodeName,   // 记录当前节点
-				image:    cs.Image,   // 记录镜像信息
-				reason:   classified, // 记录失败原因
-			}
-
-			// 如果是失败状态，清理对应的慢拉取状态
-			key := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, cs.Name)
-			cleanupSlowPull(key)
-		}
-	}
-
-	checkContainerStatuses(pod.Status.InitContainerStatuses)
-	checkContainerStatuses(pod.Status.ContainerStatuses)
+	checkImagePullSlow(pod.Status.InitContainerStatuses, nodeName, pod, reasons)
+	checkImagePullSlow(pod.Status.ContainerStatuses, nodeName, pod, reasons)
 
 	return reasons
 }
@@ -454,7 +431,7 @@ func getNodeName(pod *corev1.Pod) string {
 	if pod.Spec.NodeName != "" {
 		return pod.Spec.NodeName
 	}
-	return "unscheduled"
+	return ""
 }
 
 func isPublicRegistry(image string) bool {
@@ -490,6 +467,15 @@ func parseRegistry(image string) string {
 func isImagePullFailureReason(reason string) bool {
 	switch reason {
 	case "ErrImagePull", "ImagePullBackOff", "Cancelled", "RegistryUnavailable":
+		return true
+	default:
+		return false
+	}
+}
+
+func isImagePullSlowReason(reason string) bool {
+	switch reason {
+	case "ContainerCreating":
 		return true
 	default:
 		return false
@@ -548,7 +534,6 @@ func isSpecificReason(reason string) bool {
 func updateReasons(
 	pi *podInfo,
 	reasons map[string]failureInfo,
-	pod *corev1.Pod,
 ) {
 	// 删除旧的原因 - 使用存储的节点信息
 	for containerName, oldInfo := range pi.reasons {
@@ -660,37 +645,6 @@ func updateReasons(
 			Inc()
 		imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
 			Inc()
-
-		countKey := fmt.Sprintf(
-			"%s/%s/%s/%s/%s/%s",
-			pi.namespace,
-			pi.podName,
-			info.nodeName,
-			info.registry,
-			info.image,
-			info.reason,
-		)
-		acVal, _ := alertCounts.LoadOrStore(countKey, &alertCount{})
-
-		ac, ok := acVal.(*alertCount)
-		if !ok {
-			log.Printf("[updateReasons] 无法解析 alertCount 类型: %T", acVal)
-			continue
-		}
-
-		newCount := ac.count.Add(1)
-		log.Printf(
-			"[AlertCounter] #%d %s exported_namespace=%s exported_pod=%s container=%s node=%s registry=%s image=%s reason=%s",
-			newCount,
-			pod.Name,
-			pi.namespace,
-			pi.podName,
-			containerName,
-			info.nodeName,
-			info.registry,
-			info.image,
-			info.reason,
-		)
 
 		pi.reasons[containerName] = info
 	}
