@@ -118,7 +118,7 @@ var (
 	)
 	reProxyError   = regexp.MustCompile(`(?i)proxyconnect|proxy error`)
 	reUnauthorized = regexp.MustCompile(
-		`(?i)unauthorized|authentication require|failed to authorize`,
+		`(?i)unauthorized|authentication require|failed to authorize|authorization failed`,
 	)
 	reTLS = regexp.MustCompile(`(?i)tls handshake`)
 )
