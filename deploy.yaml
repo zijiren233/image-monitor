@@ -2,16 +2,16 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: monitoring-system
+  name: monitor-system
   labels:
-    name: monitoring-system
+    name: monitor-system
 ---
 # ServiceAccount
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: pod-image-monitor
-  namespace: monitoring-system
+  namespace: monitor-system
 ---
 # ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -35,14 +35,14 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: pod-image-monitor
-    namespace: monitoring-system
+    namespace: monitor-system
 ---
 # Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pod-image-monitor
-  namespace: monitoring-system
+  namespace: monitor-system
   labels:
     app: pod-image-monitor
 spec:
@@ -95,7 +95,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pod-image-monitor
-  namespace: monitoring-system
+  namespace: monitor-system
   labels:
     app: pod-image-monitor
 spec:
@@ -113,7 +113,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: pod-image-monitor
-  namespace: monitoring-system
+  namespace: monitor-system
   labels:
     app: pod-image-monitor
 spec:
@@ -129,4 +129,4 @@ spec:
       params: {}
   namespaceSelector:
     matchNames:
-      - monitoring-system
+      - monitor-system
