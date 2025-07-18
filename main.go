@@ -233,7 +233,7 @@ func checkSlowPull(ns, podName string, cs corev1.ContainerStatus, image string) 
 
 	// 容器不在等待状态或者是失败状态，清理慢拉取状态
 	if cs.State.Waiting == nil ||
-		isImagePullFailureReason(cs.State.Waiting.Reason) ||
+		!isImagePullFailureReason(cs.State.Waiting.Reason) ||
 		!isPublicRegistry(image) {
 		cleanupSlowPull(slowPullTimerKey)
 		return
@@ -414,7 +414,7 @@ func analyzePodImagePullErrors(pod *corev1.Pod, nodeName string) map[string]fail
 	checkContainerStatuses := func(statuses []corev1.ContainerStatus) {
 		for _, cs := range statuses {
 			if cs.State.Waiting == nil ||
-				isImagePullFailureReason(cs.State.Waiting.Reason) ||
+				!isImagePullFailureReason(cs.State.Waiting.Reason) ||
 				!isPublicRegistry(cs.Image) {
 				continue
 			}
