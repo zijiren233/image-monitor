@@ -154,7 +154,7 @@ func newCheckSlowPullHandler(
 
 		nodeName := getNodeName(p2)
 		if nodeName == "" {
-			log.Printf("[SlowPull] 获取 Pod %s/%s 的节点名失败", ns, podName)
+			// not schedule to any node, skip
 			return
 		}
 
@@ -251,7 +251,7 @@ func onPodAddOrUpdate(obj any) {
 
 	currentNodeName := getNodeName(pod)
 	if currentNodeName == "" {
-		log.Printf("[PodEvent] 获取 Pod %s/%s 的节点名失败", pod.Namespace, pod.Name)
+		// not schedule to any node, skip
 		return
 	}
 
