@@ -464,7 +464,8 @@ func isPublicRegistry(image string) bool {
 		strings.HasPrefix(image, "registry.k8s.io/") ||
 		(strings.HasPrefix(image, "registry.") && strings.Contains(image, ".aliyuncs.com/")) ||
 		(strings.HasPrefix(image, "hub.") && strings.Contains(image, ".sealos.run/")) ||
-		strings.HasPrefix(image, "sealos.hub")
+		strings.HasPrefix(image, "sealos.hub") ||
+		strings.Contains(image, ".cr.aliyuncs.com/")
 }
 
 func parseRegistry(image string) string {
