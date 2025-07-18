@@ -62,12 +62,15 @@ var (
 type reason = string
 
 const (
-	ReasonImageNotFound reason = "image_not_found"
-	ReasonProxyError    reason = "proxy_error"
-	ReasonUnauthorized  reason = "unauthorized"
-	ReasonTLSHandshake  reason = "tls_handshake_error"
-	ReasonBackOff       reason = "back_off_pulling_image"
-	ReasonUnknown       reason = "unknown"
+	ReasonImageNotFound     reason = "image_not_found"
+	ReasonProxyError        reason = "proxy_error"
+	ReasonUnauthorized      reason = "unauthorized"
+	ReasonTLSHandshake      reason = "tls_handshake_error"
+	ReasonIOTimeout         reason = "io_timeout"
+	ReasonConnectionRefused reason = "connection_refused"
+	ReasonNetworkError      reason = "network_error"
+	ReasonBackOff           reason = "back_off_pulling_image"
+	ReasonUnknown           reason = "unknown"
 )
 
 // podInfo 包含失败原因、节点信息及锁
@@ -120,7 +123,10 @@ var (
 	reUnauthorized = regexp.MustCompile(
 		`(?i)unauthorized|authentication require|failed to authorize|authorization failed`,
 	)
-	reTLS = regexp.MustCompile(`(?i)tls handshake`)
+	reTLS               = regexp.MustCompile(`(?i)tls handshake`)
+	reIOTimeout         = regexp.MustCompile(`(?i)i/o timeout`)
+	reConnectionRefused = regexp.MustCompile(`(?i)connection refused`)
+	reNetworkError      = regexp.MustCompile(`(?i)failed to do request`)
 )
 
 // isBackOffPullingImage 检查是否为 back-off pulling image 状态
@@ -508,6 +514,18 @@ func classifyFailureReason(r, message string) reason {
 
 		if reTLS.MatchString(lowMsg) {
 			return ReasonTLSHandshake
+		}
+
+		if reIOTimeout.MatchString(lowMsg) {
+			return ReasonIOTimeout
+		}
+
+		if reConnectionRefused.MatchString(lowMsg) {
+			return ReasonConnectionRefused
+		}
+
+		if reNetworkError.MatchString(lowMsg) {
+			return ReasonNetworkError
 		}
 
 		if strings.HasPrefix(lowMsg, "back-off pulling image") {
