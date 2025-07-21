@@ -256,10 +256,11 @@ func onPodAddOrUpdate(obj any) {
 	}
 
 	log.Printf(
-		"[PodEvent] phase=%s uid=%s node=%s pod=%s containers=%d",
+		"[onPodAddOrUpdate] phase=%s uid=%s node=%s namespace=%s pod=%s containers=%d",
 		pod.Status.Phase,
 		string(pod.UID),
 		currentNodeName,
+		pod.Namespace,
 		pod.Name,
 		len(pod.Status.ContainerStatuses),
 	)
@@ -332,7 +333,7 @@ func onPodDelete(obj any) {
 		// 使用存储的节点信息进行 Dec 操作，确保在正确的节点上执行
 		for containerName, info := range pi.reasons {
 			log.Printf(
-				"[PodDelete] Dec gauge: namespace=%s pod=%s container=%s node=%s registry=%s image=%s reason=%s",
+				"[onPodDelete] Dec gauge: namespace=%s pod=%s container=%s node=%s registry=%s image=%s reason=%s",
 				pi.namespace,
 				pi.podName,
 				containerName,
@@ -344,6 +345,8 @@ func onPodDelete(obj any) {
 			imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
 				Dec()
 		}
+	} else {
+		log.Printf("[onPodDelete] pod %s not found in podFailures", key)
 	}
 
 	// 清理慢拉取相关的状态
@@ -675,7 +678,7 @@ func main() {
 	podInformer := factory.Core().V1().Pods().Informer()
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    onPodAddOrUpdate,
-		UpdateFunc: func(old, new any) { onPodAddOrUpdate(new) },
+		UpdateFunc: func(_, new any) { onPodAddOrUpdate(new) },
 		DeleteFunc: onPodDelete,
 	})
 
