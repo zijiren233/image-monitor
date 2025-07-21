@@ -386,7 +386,7 @@ func cleanupSlowPull(slowPullTimerKey string) {
 	}
 }
 
-func checkImagePullSlow(
+func checkImagePullError(
 	statuses []corev1.ContainerStatus,
 	nodeName string,
 	pod *corev1.Pod,
@@ -421,8 +421,8 @@ func checkImagePullSlow(
 func analyzePodImagePullErrors(nodeName string, pod *corev1.Pod) map[string]failureInfo {
 	reasons := make(map[string]failureInfo)
 
-	checkImagePullSlow(pod.Status.InitContainerStatuses, nodeName, pod, reasons)
-	checkImagePullSlow(pod.Status.ContainerStatuses, nodeName, pod, reasons)
+	checkImagePullError(pod.Status.InitContainerStatuses, nodeName, pod, reasons)
+	checkImagePullError(pod.Status.ContainerStatuses, nodeName, pod, reasons)
 
 	return reasons
 }
