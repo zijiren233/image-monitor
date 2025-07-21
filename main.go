@@ -117,7 +117,7 @@ var (
 	reUnauthorized = regexp.MustCompile(
 		`(?i)unauthorized|authentication require|failed to authorize|authorization failed`,
 	)
-	reTLS               = regexp.MustCompile(`(?i)tls handshake`)
+	reTLS               = regexp.MustCompile(`(?i)tls handshake|failed to verify certificate`)
 	reIOTimeout         = regexp.MustCompile(`(?i)i/o timeout`)
 	reConnectionRefused = regexp.MustCompile(`(?i)connection refused`)
 	reNetworkError      = regexp.MustCompile(`(?i)failed to do request`)
@@ -313,6 +313,8 @@ func onPodDelete(obj any) {
 			return
 		}
 	}
+
+	log.Printf("[onPodDelete] namespace=%s pod=%s", pod.Namespace, pod.Name)
 
 	key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
