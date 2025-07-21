@@ -33,26 +33,11 @@ var (
 		},
 		[]string{"exported_namespace", "exported_pod", "node", "registry", "image", "reason"},
 	)
-	imagePullFailureAlertCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "k8s_pod_image_pull_failure_alerts_total",
-			Help: "Total number of image pull failure alerts triggered, by exported_namespace, exported_pod, node, image and reason",
-		},
-		[]string{"exported_namespace", "exported_pod", "node", "registry", "image", "reason"},
-	)
 	// 改为 Gauge 类型，可以进行 Inc 和 Dec 操作
 	imagePullSlowAlertGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "k8s_pod_image_pull_slow_total",
 			Help: "Number of pods with slow image pull (>=5m), by exported_namespace, exported_pod, node, registry and image",
-		},
-		[]string{"exported_namespace", "exported_pod", "node", "registry", "image"},
-	)
-	// 保留 Counter 用于记录慢拉取告警的累计次数
-	imagePullSlowAlertCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "k8s_pod_image_pull_slow_alerts_total",
-			Help: "Total number of image pull slow alerts triggered (>=5m), by exported_namespace, exported_pod, node, registry and image",
 		},
 		[]string{"exported_namespace", "exported_pod", "node", "registry", "image"},
 	)
@@ -188,8 +173,6 @@ func newCheckSlowPullHandler(
 
 			// 增加慢拉取指标
 			imagePullSlowAlertGauge.WithLabelValues(ns, podName, nodeName, registry, image).
-				Inc()
-			imagePullSlowAlertCounter.WithLabelValues(ns, podName, nodeName, registry, image).
 				Inc()
 
 			log.Printf(
@@ -349,8 +332,14 @@ func onPodDelete(obj any) {
 				info.image,
 				info.reason,
 			)
-			imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
-				Dec()
+			imagePullFailureGauge.DeleteLabelValues(
+				pi.namespace,
+				pi.podName,
+				info.nodeName,
+				info.registry,
+				info.image,
+				info.reason,
+			)
 		}
 	} else {
 		log.Printf("[onPodDelete] pod %s not found in podFailures", key)
@@ -376,8 +365,13 @@ func newCleanupSlowPullWithPrefixFunc(prefix string) func(k, v any) bool {
 func cleanupSlowPull(slowPullTimerKey string) {
 	if val, exists := slowPullTracking.LoadAndDelete(slowPullTimerKey); exists {
 		if info, ok := val.(slowPullInfo); ok {
-			imagePullSlowAlertGauge.WithLabelValues(info.namespace, info.podName, info.nodeName, info.registry, info.image).
-				Dec()
+			imagePullSlowAlertGauge.DeleteLabelValues(
+				info.namespace,
+				info.podName,
+				info.nodeName,
+				info.registry,
+				info.image,
+			)
 			log.Printf(
 				"[SlowPullCleanup] Dec slow pull gauge: namespace=%s pod=%s node=%s registry=%s image=%s",
 				info.namespace,
@@ -560,8 +554,14 @@ func updateReasons(
 				oldInfo.image,
 				oldInfo.reason,
 			)
-			imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, oldInfo.nodeName, oldInfo.registry, oldInfo.image, oldInfo.reason).
-				Dec()
+			imagePullFailureGauge.DeleteLabelValues(
+				pi.namespace,
+				pi.podName,
+				oldInfo.nodeName,
+				oldInfo.registry,
+				oldInfo.image,
+				oldInfo.reason,
+			)
 			delete(pi.reasons, containerName)
 		}
 	}
@@ -606,12 +606,16 @@ func updateReasons(
 				)
 
 				// 在旧信息上 Dec
-				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, oldInfo.nodeName, oldInfo.registry, oldInfo.image, oldInfo.reason).
-					Dec()
+				imagePullFailureGauge.DeleteLabelValues(
+					pi.namespace,
+					pi.podName,
+					oldInfo.nodeName,
+					oldInfo.registry,
+					oldInfo.image,
+					oldInfo.reason,
+				)
 				// 在新信息上 Inc
 				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
-					Inc()
-				imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
 					Inc()
 
 				// 更新存储的信息，使用最终确定的原因
@@ -628,11 +632,15 @@ func updateReasons(
 					finalReason,
 				)
 
-				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, oldInfo.nodeName, oldInfo.registry, oldInfo.image, oldInfo.reason).
-					Dec()
+				imagePullFailureGauge.DeleteLabelValues(
+					pi.namespace,
+					pi.podName,
+					oldInfo.nodeName,
+					oldInfo.registry,
+					oldInfo.image,
+					oldInfo.reason,
+				)
 				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
-					Inc()
-				imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
 					Inc()
 
 				info.reason = finalReason
@@ -655,8 +663,6 @@ func updateReasons(
 		)
 		imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
 			Inc()
-		imagePullFailureAlertCounter.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
-			Inc()
 
 		pi.reasons[containerName] = info
 	}
@@ -665,9 +671,7 @@ func updateReasons(
 func main() {
 	// 注册 Prometheus 指标
 	prometheus.MustRegister(imagePullFailureGauge)
-	prometheus.MustRegister(imagePullFailureAlertCounter)
 	prometheus.MustRegister(imagePullSlowAlertGauge)
-	prometheus.MustRegister(imagePullSlowAlertCounter)
 
 	// 创建 in-cluster 配置
 	config, err := rest.InClusterConfig()
