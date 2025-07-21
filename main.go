@@ -330,6 +330,13 @@ func onPodDelete(obj any) {
 		pi.mu.Lock()
 		defer pi.mu.Unlock()
 
+		log.Printf(
+			"[onPodDelete] namespace=%s pod=%s cleanup %d reasons",
+			pi.namespace,
+			pi.podName,
+			len(pi.reasons),
+		)
+
 		// 使用存储的节点信息进行 Dec 操作，确保在正确的节点上执行
 		for containerName, info := range pi.reasons {
 			log.Printf(
