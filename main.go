@@ -173,7 +173,7 @@ func newCheckSlowPullHandler(
 
 			// 增加慢拉取指标
 			imagePullSlowAlertGauge.WithLabelValues(ns, podName, nodeName, registry, image).
-				Inc()
+				Set(1)
 
 			log.Printf(
 				"[SlowPullAlert] %s/%s container=%s node=%s registry=%s image=%s",
@@ -616,7 +616,7 @@ func updateReasons(
 				)
 				// 在新信息上 Inc
 				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
-					Inc()
+					Set(1)
 
 				// 更新存储的信息，使用最终确定的原因
 				info.reason = finalReason
@@ -641,7 +641,7 @@ func updateReasons(
 					oldInfo.reason,
 				)
 				imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, finalReason).
-					Inc()
+					Set(1)
 
 				info.reason = finalReason
 				pi.reasons[containerName] = info
@@ -662,7 +662,7 @@ func updateReasons(
 			info.reason,
 		)
 		imagePullFailureGauge.WithLabelValues(pi.namespace, pi.podName, info.nodeName, info.registry, info.image, info.reason).
-			Inc()
+			Set(1)
 
 		pi.reasons[containerName] = info
 	}

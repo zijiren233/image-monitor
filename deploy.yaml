@@ -58,7 +58,7 @@ spec:
       serviceAccountName: pod-image-monitor
       containers:
         - name: monitor
-          image: ghcr.io/zijiren233/image-monitor:v0.1.0
+          image: ghcr.io/zijiren233/image-monitor:v0.1.1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
